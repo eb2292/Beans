@@ -127,7 +127,7 @@ local function CreateFrameUI()
   end)
 
   frame:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetOwner(self, "ANCHOR_TOP", 0, 2)
     GameTooltip:AddLine("Beans")
     GameTooltip:AddLine("Daily net: " .. FormatMoney(BeansDB.dailyNet), 1, 1, 1)
     GameTooltip:AddLine("Weekly net: " .. FormatMoney(BeansDB.weeklyNet), 1, 1, 1)
