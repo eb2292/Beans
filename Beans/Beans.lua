@@ -106,17 +106,13 @@ end
 
 local function CreateFrameUI()
   local frame = CreateFrame("Button", "BeansFrame", UIParent)
-  frame:SetSize(32, 32)
+  frame:SetSize(140, 20)
   frame:SetFrameStrata("MEDIUM")
   frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:RegisterForDrag("LeftButton")
 
-  frame.texture = frame:CreateTexture(nil, "BACKGROUND")
-  frame.texture:SetAllPoints()
-  frame.texture:SetTexture("Interface/Icons/INV_Misc_Coin_01")
-
   frame.text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  frame.text:SetPoint("LEFT", frame, "RIGHT", 4, 0)
+  frame.text:SetPoint("LEFT", frame, "LEFT", 0, 0)
 
   frame:SetScript("OnDragStart", function(self)
     if BeansDB.options.lockFrame then
