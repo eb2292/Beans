@@ -1,5 +1,7 @@
 # Beans
 
+![Beans Screenshot](/screenshot.png?raw=true)
+
 Beans is a lightweight World of Warcraft: Mists of Pandaria Classic addon that tracks how much gold your character has gained or lost for the current day and week. It provides a small, movable coin icon that shows a running total and a tooltip with both daily and weekly net values.
 
 ## Features
