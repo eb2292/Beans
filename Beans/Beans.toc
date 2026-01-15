@@ -1,0 +1,8 @@
+## Interface: 50400
+## Title: Beans
+## Notes: Tracks daily and weekly gold gains/losses.
+## Author: Beans
+## Version: 1.0.0
+## SavedVariables: BeansDB
+
+Beans.lua
