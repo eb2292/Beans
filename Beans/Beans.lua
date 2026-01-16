@@ -1,6 +1,6 @@
 local ADDON_NAME = ...
 
-local DEFAULTS = {
+local CHARACTER_DEFAULTS = {
   dayKey = nil,
   weekKey = nil,
   dailyNet = 0,
@@ -22,6 +22,15 @@ local function GetWeekKey()
   return date("%Y-%U")
 end
 
+local function GetCharacterKey()
+  local name, realm = UnitName("player")
+  if not name then
+    return "unknown"
+  end
+  realm = realm or GetRealmName() or "unknown"
+  return name .. "-" .. realm
+end
+
 local function FormatMoney(amount)
   local copper = math.abs(amount)
   local sign = amount < 0 and "-" or ""
@@ -33,55 +42,70 @@ local function EnsureDefaults()
     BeansDB = {}
   end
 
-  for key, value in pairs(DEFAULTS) do
-    if BeansDB[key] == nil then
+  if not BeansDB.characters then
+    BeansDB.characters = {}
+  end
+end
+
+local function GetCharacterData()
+  EnsureDefaults()
+  local characterKey = GetCharacterKey()
+  if not BeansDB.characters[characterKey] then
+    BeansDB.characters[characterKey] = {}
+  end
+
+  local data = BeansDB.characters[characterKey]
+  for key, value in pairs(CHARACTER_DEFAULTS) do
+    if data[key] == nil then
       if type(value) == "table" then
-        BeansDB[key] = {}
+        data[key] = {}
         for innerKey, innerValue in pairs(value) do
-          BeansDB[key][innerKey] = innerValue
+          data[key][innerKey] = innerValue
         end
       else
-        BeansDB[key] = value
+        data[key] = value
       end
     elseif type(value) == "table" then
       for innerKey, innerValue in pairs(value) do
-        if BeansDB[key][innerKey] == nil then
-          BeansDB[key][innerKey] = innerValue
+        if data[key][innerKey] == nil then
+          data[key][innerKey] = innerValue
         end
       end
     end
   end
+
+  return data
 end
 
-local function ResetIfNeeded()
+local function ResetIfNeeded(data)
   local dayKey = GetDayKey()
   local weekKey = GetWeekKey()
 
-  if BeansDB.dayKey ~= dayKey then
-    BeansDB.dayKey = dayKey
-    BeansDB.dailyNet = 0
+  if data.dayKey ~= dayKey then
+    data.dayKey = dayKey
+    data.dailyNet = 0
   end
 
-  if BeansDB.weekKey ~= weekKey then
-    BeansDB.weekKey = weekKey
-    BeansDB.weeklyNet = 0
+  if data.weekKey ~= weekKey then
+    data.weekKey = weekKey
+    data.weeklyNet = 0
   end
 end
 
-local function UpdateFrameText(frame)
+local function UpdateFrameText(frame, data)
   if not frame then
     return
   end
 
-  local display = BeansDB.options.display
-  local value = display == "weekly" and BeansDB.weeklyNet or BeansDB.dailyNet
+  local display = data.options.display
+  local value = display == "weekly" and data.weeklyNet or data.dailyNet
   local label = display == "weekly" and "Week" or "Day"
   frame.text:SetText(label .. ": " .. FormatMoney(value))
 end
 
-local function SaveFramePosition(frame)
+local function SaveFramePosition(frame, data)
   local point, _, relativePoint, xOfs, yOfs = frame:GetPoint()
-  BeansDB.framePoint = {
+  data.framePoint = {
     point = point,
     relativePoint = relativePoint,
     x = xOfs,
@@ -89,22 +113,22 @@ local function SaveFramePosition(frame)
   }
 end
 
-local function RestoreFramePosition(frame)
-  if not BeansDB.framePoint then
+local function RestoreFramePosition(frame, data)
+  if not data.framePoint then
     frame:SetPoint("CENTER", UIParent, "CENTER", -200, 0)
     return
   end
 
   frame:SetPoint(
-    BeansDB.framePoint.point,
+    data.framePoint.point,
     UIParent,
-    BeansDB.framePoint.relativePoint,
-    BeansDB.framePoint.x,
-    BeansDB.framePoint.y
+    data.framePoint.relativePoint,
+    data.framePoint.x,
+    data.framePoint.y
   )
 end
 
-local function CreateFrameUI()
+local function CreateFrameUI(data)
   local frame = CreateFrame("Button", "BeansFrame", UIParent)
   frame:SetSize(140, 20)
   frame:SetFrameStrata("MEDIUM")
@@ -115,7 +139,7 @@ local function CreateFrameUI()
   frame.text:SetPoint("LEFT", frame, "LEFT", 0, 0)
 
   frame:SetScript("OnDragStart", function(self)
-    if BeansDB.options.lockFrame then
+    if data.options.lockFrame then
       return
     end
     self:StartMoving()
@@ -123,14 +147,14 @@ local function CreateFrameUI()
 
   frame:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
-    SaveFramePosition(self)
+    SaveFramePosition(self, data)
   end)
 
   frame:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP", 0, 2)
     GameTooltip:AddLine("Beans")
-    GameTooltip:AddLine("Daily net: " .. FormatMoney(BeansDB.dailyNet), 1, 1, 1)
-    GameTooltip:AddLine("Weekly net: " .. FormatMoney(BeansDB.weeklyNet), 1, 1, 1)
+    GameTooltip:AddLine("Daily net: " .. FormatMoney(data.dailyNet), 1, 1, 1)
+    GameTooltip:AddLine("Weekly net: " .. FormatMoney(data.weeklyNet), 1, 1, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("/beans for options", 0.8, 0.8, 0.8)
     GameTooltip:Show()
@@ -142,18 +166,18 @@ local function CreateFrameUI()
 
   frame:SetScript("OnClick", function(_, button)
     if button == "RightButton" then
-      BeansDB.options.display = BeansDB.options.display == "weekly" and "daily" or "weekly"
-      UpdateFrameText(frame)
+      data.options.display = data.options.display == "weekly" and "daily" or "weekly"
+      UpdateFrameText(frame, data)
     end
   end)
 
   frame:SetMovable(true)
   frame:SetClampedToScreen(true)
 
-  RestoreFramePosition(frame)
-  UpdateFrameText(frame)
+  RestoreFramePosition(frame, data)
+  UpdateFrameText(frame, data)
 
-  if BeansDB.options.showFrame then
+  if data.options.showFrame then
     frame:Show()
   else
     frame:Hide()
@@ -167,46 +191,47 @@ local function PrintMessage(message)
 end
 
 local function HandleSlashCommand(msg)
+  local data = GetCharacterData()
   local command = string.lower(msg or "")
 
   if command == "lock" then
-    BeansDB.options.lockFrame = true
+    data.options.lockFrame = true
     PrintMessage("Frame locked.")
   elseif command == "unlock" then
-    BeansDB.options.lockFrame = false
+    data.options.lockFrame = false
     PrintMessage("Frame unlocked.")
   elseif command == "show" then
-    BeansDB.options.showFrame = true
+    data.options.showFrame = true
     BeansFrame:Show()
     PrintMessage("Frame shown.")
   elseif command == "hide" then
-    BeansDB.options.showFrame = false
+    data.options.showFrame = false
     BeansFrame:Hide()
     PrintMessage("Frame hidden.")
   elseif command == "reset day" then
-    BeansDB.dailyNet = 0
-    BeansDB.dayKey = GetDayKey()
-    UpdateFrameText(BeansFrame)
+    data.dailyNet = 0
+    data.dayKey = GetDayKey()
+    UpdateFrameText(BeansFrame, data)
     PrintMessage("Daily totals reset.")
   elseif command == "reset week" then
-    BeansDB.weeklyNet = 0
-    BeansDB.weekKey = GetWeekKey()
-    UpdateFrameText(BeansFrame)
+    data.weeklyNet = 0
+    data.weekKey = GetWeekKey()
+    UpdateFrameText(BeansFrame, data)
     PrintMessage("Weekly totals reset.")
   elseif command == "reset all" then
-    BeansDB.dailyNet = 0
-    BeansDB.weeklyNet = 0
-    BeansDB.dayKey = GetDayKey()
-    BeansDB.weekKey = GetWeekKey()
-    UpdateFrameText(BeansFrame)
+    data.dailyNet = 0
+    data.weeklyNet = 0
+    data.dayKey = GetDayKey()
+    data.weekKey = GetWeekKey()
+    UpdateFrameText(BeansFrame, data)
     PrintMessage("Daily and weekly totals reset.")
   elseif command == "display daily" then
-    BeansDB.options.display = "daily"
-    UpdateFrameText(BeansFrame)
+    data.options.display = "daily"
+    UpdateFrameText(BeansFrame, data)
     PrintMessage("Frame display set to daily net.")
   elseif command == "display weekly" then
-    BeansDB.options.display = "weekly"
-    UpdateFrameText(BeansFrame)
+    data.options.display = "weekly"
+    UpdateFrameText(BeansFrame, data)
     PrintMessage("Frame display set to weekly net.")
   else
     PrintMessage("Commands:")
@@ -229,24 +254,25 @@ frame:RegisterEvent("PLAYER_MONEY")
 
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
-    EnsureDefaults()
-    ResetIfNeeded()
-    CreateFrameUI()
-    BeansDB.lastMoney = GetMoney()
+    local data = GetCharacterData()
+    ResetIfNeeded(data)
+    CreateFrameUI(data)
+    data.lastMoney = GetMoney()
   elseif event == "PLAYER_MONEY" then
-    if not BeansDB.lastMoney then
-      BeansDB.lastMoney = GetMoney()
+    local data = GetCharacterData()
+    if not data.lastMoney then
+      data.lastMoney = GetMoney()
       return
     end
 
-    ResetIfNeeded()
+    ResetIfNeeded(data)
 
     local currentMoney = GetMoney()
-    local diff = currentMoney - BeansDB.lastMoney
-    BeansDB.lastMoney = currentMoney
-    BeansDB.dailyNet = BeansDB.dailyNet + diff
-    BeansDB.weeklyNet = BeansDB.weeklyNet + diff
-    UpdateFrameText(BeansFrame)
+    local diff = currentMoney - data.lastMoney
+    data.lastMoney = currentMoney
+    data.dailyNet = data.dailyNet + diff
+    data.weeklyNet = data.weeklyNet + diff
+    UpdateFrameText(BeansFrame, data)
   end
 end)
 
