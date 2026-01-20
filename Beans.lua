@@ -4,12 +4,15 @@ local CHARACTER_DEFAULTS = {
   dayKey = nil,
   weekKey = nil,
   dailyNet = 0,
+  dailyIn = 0,
+  dailyOut = 0,
   weeklyNet = 0,
+  sessionNet = 0,
   lastMoney = nil,
   options = {
     lockFrame = false,
     showFrame = true,
-    display = "daily",
+    display = "session",
   },
   framePoint = nil,
 }
@@ -84,6 +87,8 @@ local function ResetIfNeeded(data)
   if data.dayKey ~= dayKey then
     data.dayKey = dayKey
     data.dailyNet = 0
+    data.dailyIn = 0
+    data.dailyOut = 0
   end
 
   if data.weekKey ~= weekKey then
@@ -98,8 +103,18 @@ local function UpdateFrameText(frame, data)
   end
 
   local display = data.options.display
-  local value = display == "weekly" and data.weeklyNet or data.dailyNet
-  local label = display == "weekly" and "Week" or "Day"
+  local value
+  local label
+  if display == "weekly" then
+    value = data.weeklyNet
+    label = "Week"
+  elseif display == "daily" then
+    value = data.dailyNet
+    label = "Day"
+  else
+    value = data.sessionNet
+    label = "Session"
+  end
   frame.text:SetText(label .. ": " .. FormatMoney(value))
 end
 
@@ -154,6 +169,8 @@ local function CreateFrameUI(data)
     GameTooltip:SetOwner(self, "ANCHOR_TOP", 0, 2)
     GameTooltip:AddLine("Beans")
     GameTooltip:AddLine("Daily net: " .. FormatMoney(data.dailyNet), 1, 1, 1)
+    GameTooltip:AddLine("Daily in: " .. FormatMoney(data.dailyIn), 1, 1, 1)
+    GameTooltip:AddLine("Daily out: " .. FormatMoney(data.dailyOut), 1, 1, 1)
     GameTooltip:AddLine("Weekly net: " .. FormatMoney(data.weeklyNet), 1, 1, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("/beans for options", 0.8, 0.8, 0.8)
@@ -166,7 +183,13 @@ local function CreateFrameUI(data)
 
   frame:SetScript("OnClick", function(_, button)
     if button == "RightButton" then
-      data.options.display = data.options.display == "weekly" and "daily" or "weekly"
+      if data.options.display == "session" then
+        data.options.display = "daily"
+      elseif data.options.display == "daily" then
+        data.options.display = "weekly"
+      else
+        data.options.display = "session"
+      end
       UpdateFrameText(frame, data)
     end
   end)
@@ -210,6 +233,8 @@ local function HandleSlashCommand(msg)
     PrintMessage("Frame hidden.")
   elseif command == "reset day" then
     data.dailyNet = 0
+    data.dailyIn = 0
+    data.dailyOut = 0
     data.dayKey = GetDayKey()
     UpdateFrameText(BeansFrame, data)
     PrintMessage("Daily totals reset.")
@@ -220,11 +245,17 @@ local function HandleSlashCommand(msg)
     PrintMessage("Weekly totals reset.")
   elseif command == "reset all" then
     data.dailyNet = 0
+    data.dailyIn = 0
+    data.dailyOut = 0
     data.weeklyNet = 0
     data.dayKey = GetDayKey()
     data.weekKey = GetWeekKey()
     UpdateFrameText(BeansFrame, data)
     PrintMessage("Daily and weekly totals reset.")
+  elseif command == "display session" then
+    data.options.display = "session"
+    UpdateFrameText(BeansFrame, data)
+    PrintMessage("Frame display set to session net.")
   elseif command == "display daily" then
     data.options.display = "daily"
     UpdateFrameText(BeansFrame, data)
@@ -242,9 +273,10 @@ local function HandleSlashCommand(msg)
     PrintMessage("/beans reset day - Reset daily net.")
     PrintMessage("/beans reset week - Reset weekly net.")
     PrintMessage("/beans reset all - Reset daily and weekly net.")
+    PrintMessage("/beans display session - Show session net on the frame.")
     PrintMessage("/beans display daily - Show daily net on the frame.")
     PrintMessage("/beans display weekly - Show weekly net on the frame.")
-    PrintMessage("Right-click the icon to toggle daily/weekly display.")
+    PrintMessage("Right-click the icon to toggle session/daily/weekly display.")
   end
 end
 
@@ -256,6 +288,7 @@ frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     local data = GetCharacterData()
     ResetIfNeeded(data)
+    data.sessionNet = 0
     CreateFrameUI(data)
     data.lastMoney = GetMoney()
   elseif event == "PLAYER_MONEY" then
@@ -272,6 +305,12 @@ frame:SetScript("OnEvent", function(_, event)
     data.lastMoney = currentMoney
     data.dailyNet = data.dailyNet + diff
     data.weeklyNet = data.weeklyNet + diff
+    data.sessionNet = data.sessionNet + diff
+    if diff > 0 then
+      data.dailyIn = data.dailyIn + diff
+    elseif diff < 0 then
+      data.dailyOut = data.dailyOut + (-diff)
+    end
     UpdateFrameText(BeansFrame, data)
   end
 end)
